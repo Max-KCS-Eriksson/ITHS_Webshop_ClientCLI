@@ -11,9 +11,23 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
     private WebClient webClient;
     @Autowired private CommandLineInput terminal;
 
+    private boolean isRunning;
+
     @Override
     public void run(String... args) throws Exception {
         String baseUrl = "http://localhost:8080/api/products";
         webClient = WebClient.create(baseUrl);
+
+        isRunning = true;
+        while (isRunning) menu();
+
+        terminal.close();
+    }
+
+    private void menu() {
+        int choice = terminal.inputInt("Choice");
+        switch (choice) {
+            case 0 -> isRunning = false;
+        }
     }
 }
