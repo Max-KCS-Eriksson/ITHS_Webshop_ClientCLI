@@ -1,12 +1,19 @@
 package com.maxeriksson.lab_02;
 
+import com.maxeriksson.lab_02.model.Category;
+import com.maxeriksson.lab_02.model.Product;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import reactor.core.publisher.Mono;
+
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class CommandLineRunnerImpl implements CommandLineRunner {
@@ -28,9 +35,61 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
     }
 
     private void menu() {
+        printMenuChoices(
+                new String[] {
+                    "Show Products by Categories",
+                });
+
         int choice = terminal.inputInt("Choice");
         switch (choice) {
+            case 1 -> {
+                List<Category> categories = showCategories();
+                showProductsByCategory(categories);
+            }
             case 0 -> isRunning = false;
+        }
+    }
+
+    private List<Category> showCategories() {
+        Mono<List<Category>> categoriesMono =
+                webClient
+                        .get()
+                        .uri("/categories")
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<List<Category>>() {});
+
+        List<Category> categories = categoriesMono.block();
+        List<String> categoryNames =
+                categories.stream()
+                        .map(category -> category.getName())
+                        .collect(Collectors.toList());
+        printMenuChoices(categoryNames);
+
+        return categories;
+    }
+
+    private void showProductsByCategory(List<Category> categories) {
+        int choice = terminal.inputInt("Choice") - 1;
+        if (choice < 0) return;
+
+        Category category = categories.get(choice);
+        Mono<List<Product>> productsMono =
+                webClient
+                        .get()
+                        .uri(
+                                uriBuilder ->
+                                        uriBuilder
+                                                .path("/category/{category}")
+                                                .build(category.getName()))
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<List<Product>>() {});
+
+        List<Product> products = productsMono.block();
+        System.out.println();
+        for (Product product : products) {
+            System.out.println(product.getName());
+            System.out.println("  " + product.getCategory().getName());
+            System.out.println("  " + product.getPrice() + " SEK");
         }
     }
 
