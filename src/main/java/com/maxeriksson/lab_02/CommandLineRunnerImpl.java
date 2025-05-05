@@ -9,6 +9,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Arrays;
@@ -73,7 +74,7 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
         if (choice < 0) return;
 
         Category category = categories.get(choice);
-        Mono<List<Product>> productsMono =
+        Flux<Product> productfFlux =
                 webClient
                         .get()
                         .uri(
@@ -82,9 +83,9 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
                                                 .path("/category/{category}")
                                                 .build(category.getName()))
                         .retrieve()
-                        .bodyToMono(new ParameterizedTypeReference<List<Product>>() {});
+                        .bodyToFlux(Product.class);
 
-        List<Product> products = productsMono.block();
+        List<Product> products = productfFlux.collectList().block();
         System.out.println();
         for (Product product : products) {
             System.out.println(product.getName());
