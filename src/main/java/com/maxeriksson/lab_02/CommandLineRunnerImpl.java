@@ -12,8 +12,12 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Component
@@ -38,7 +42,7 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
     private void menu() {
         printMenuChoices(
                 new String[] {
-                    "Add new Product", "Show Products by Categories",
+                    "Add new Product", "Show Products by Categories", "Change Product price",
                 });
 
         int choice = terminal.inputInt("Choice");
@@ -50,6 +54,22 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
             case 2 -> {
                 List<Category> categories = showCategories();
                 showProductsByCategory(categories);
+            }
+            case 3 -> {
+                List<Product> products = new ArrayList<>();
+                while (products.size() == 0) {
+                    products = searchProductByName();
+                }
+                Optional<Product> product;
+                if (products.size() == 1) {
+                    product = Optional.of(products.getFirst());
+                    System.out.println();
+                    printProductInfo(product.get());
+                } else {
+                    product = selectFromList(products);
+                    if (product.isEmpty()) return; // Aborted
+                }
+                updateProductPrice(product.get());
             }
             case 0 -> isRunning = false;
         }
@@ -110,21 +130,74 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
         List<Product> products = productfFlux.collectList().block();
         System.out.println();
         for (Product product : products) {
-            System.out.println(product.getName());
-            System.out.println("  " + product.getCategory().getName());
-            System.out.println("  " + product.getPrice() + " SEK");
+            printProductInfo(product);
         }
     }
 
-    private void printMenuChoices(String[] choices) {
+    private List<Product> searchProductByName() {
+        String productName = terminal.inputString("Name");
+
+        Flux<Product> productsfFlux =
+                webClient
+                        .get()
+                        .uri(
+                                uriBuilder ->
+                                        uriBuilder
+                                                .path("/search")
+                                                .replaceQueryParam("name", productName)
+                                                .build())
+                        .retrieve()
+                        .bodyToFlux(Product.class);
+
+        List<Product> products = productsfFlux.collectList().block();
+        return products;
+    }
+
+    private Optional<Product> selectFromList(List<Product> products) {
+        printMenuChoices(products);
+        int choice = terminal.inputInt("Choice") - 1;
+        Product product;
+        try {
+            product = products.get(choice);
+        } catch (IndexOutOfBoundsException e) {
+            return Optional.empty();
+        }
+        return Optional.of(product);
+    }
+
+    private void updateProductPrice(Product product) {
+        int price = terminal.inputInt("New Price");
+        Map<String, String> requestBody = new HashMap<>();
+        requestBody.put("price", "" + price);
+
+        Mono<Product> productmMono =
+                webClient
+                        .patch()
+                        .uri(
+                                uriBuilder ->
+                                        uriBuilder.path("/{productName}").build(product.getName()))
+                        .bodyValue(requestBody)
+                        .retrieve()
+                        .bodyToMono(Product.class);
+
+        productmMono.subscribe();
+    }
+
+    private <T> void printMenuChoices(T[] choices) {
         printMenuChoices(Arrays.asList(choices));
     }
 
-    private void printMenuChoices(List<String> choices) {
+    private <T> void printMenuChoices(List<T> choices) {
         System.out.println();
         for (int i = 0; i < choices.size(); i++) {
             System.out.println((i + 1) + ") " + choices.get(i));
         }
         System.out.println("\n0) Exit/Main Menu");
+    }
+
+    private void printProductInfo(Product product) {
+        System.out.println(product.getName());
+        System.out.println("  " + product.getCategory().getName());
+        System.out.println("  " + product.getPrice() + " SEK");
     }
 }
