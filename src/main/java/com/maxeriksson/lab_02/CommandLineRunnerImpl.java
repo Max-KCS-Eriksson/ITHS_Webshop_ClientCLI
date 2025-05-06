@@ -38,17 +38,39 @@ public class CommandLineRunnerImpl implements CommandLineRunner {
     private void menu() {
         printMenuChoices(
                 new String[] {
-                    "Show Products by Categories",
+                    "Add new Product", "Show Products by Categories",
                 });
 
         int choice = terminal.inputInt("Choice");
         switch (choice) {
             case 1 -> {
+                Product product = createProduct();
+                addNewProduct(product);
+            }
+            case 2 -> {
                 List<Category> categories = showCategories();
                 showProductsByCategory(categories);
             }
             case 0 -> isRunning = false;
         }
+    }
+
+    private Product createProduct() {
+        System.out.println();
+
+        String name = terminal.inputString("Name");
+        int price = terminal.inputInt("Price");
+        String categoryName = terminal.inputString("Category");
+        Category category = new Category(categoryName);
+
+        return new Product(name, price, category);
+    }
+
+    private void addNewProduct(Product product) {
+        Mono<Product> productmMono =
+                webClient.post().bodyValue(product).retrieve().bodyToMono(Product.class);
+
+        productmMono.subscribe();
     }
 
     private List<Category> showCategories() {
